@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-export async function querySerach(req: Request, res: Response){
+export async function querySearch(req: Request, res: Response){
   if(req.userId){
     const query: string = req.body.query;
     
