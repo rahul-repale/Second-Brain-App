@@ -4,7 +4,7 @@ import { CardModel } from "../models/Card.js";
 export async function deleteContent(req: Request, res: Response){
   if(req.userId){
     try{
-      await CardModel.deleteMany({ userId: req.userId, _id: req.body.cardId });
+      await CardModel.deleteMany({ createdBy: req.userId, _id: req.body.cardId });
       res.status(200).json({ msg: "Card deleted" });
     } catch(err) {
       res.status(500).json({ msg: "Error, Please try again", err });

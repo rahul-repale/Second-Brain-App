@@ -15,10 +15,10 @@ export async function fetchSharedLink(req: Request, res: Response){
     await data.save()
     
     if(data.targetType === "card" && data.targetedAt){
-      const card = await CardModel.findOne({ userId: data.createdBy, cardId: data.targetedAt });
+      const card = await CardModel.findOne({ createdBy: data.createdBy, cardId: data.targetedAt });
       return res.status(200).json({ card, editedBy: req.userId });
     } else if(data.targetType === "brain"){
-      const brain = await CardModel.find({ userId: data.createdBy });
+      const brain = await CardModel.find({ createdBy: data.createdBy });
       return res.status(200).json({ brain, editedBy: req.userId });
     } else {
       return res.status(400).json({ msg: "something went wrong, please try again" })
