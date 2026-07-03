@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { UserModel } from "../config/db.js";
+import { UserModel } from "../models/User.js";
 import { z } from "zod"
 import jwt from "jsonwebtoken";
 
@@ -10,7 +10,7 @@ if(!JWT_SECRET){
   throw new Error("FATAL ERROR: JWT_SECRET is not defined in the environment.");
 }
 
-export const SignIn = async function(req: Request, res: Response){
+export const signIn = async function(req: Request, res: Response){
   try{
     const signInSchema = z.object({
       username: z.string()

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CardModel } from "../config/db.js";
+import { CardModel } from "../models/Card.js";
 
 export async function deleteContent(req: Request, res: Response){
   if(req.userId){

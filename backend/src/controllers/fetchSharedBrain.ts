@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
-import { CardModel, LinkModel } from "../config/db.js";
+import { CardModel } from "../models/Card.js";
+import { LinkModel } from "../models/Link.js";
 
 export async function fetchSharedLink(req: Request, res: Response){
   try{

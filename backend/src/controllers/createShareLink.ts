@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { LinkModel } from "../config/db.js";
+import { LinkModel } from "../models/Link.js";
 import type { LinkInput } from "../types/types.js"
 
 export async function createShareLink(req: Request, res: Response){

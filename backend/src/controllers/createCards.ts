@@ -1,9 +1,10 @@
 import type { Request, Response } from "express";
-import { CardModel, UserModel } from "../config/db.js";
+import { CardModel } from "../models/Card.js";
+import { UserModel } from "../models/User.js"
 import mongoose from "mongoose";
 import type { CardInput } from "../types/types.js"
 
-export async function CreateCard(req: Request, res: Response){
+export async function createCard(req: Request, res: Response){
   if(!req.userId){
     return res.status(500).json({ err: "Session Timeout, Login again" });
   } 

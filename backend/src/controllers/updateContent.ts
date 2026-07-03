@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CardModel } from "../config/db.js";
+import { CardModel } from "../models/Card.js";
 
 export async function updateContent(req: Request, res: Response){
   if(req.userId){

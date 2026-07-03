@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { UserModel } from "../config/db.js";
+import { UserModel } from "../models/User.js";
 import { z } from "zod"
 
-export const SignUp = async function(req: Request, res: Response) {
+export const signUp = async function(req: Request, res: Response) {
   try {
     const signUpSchema = z.object({
       username: z.string()
