@@ -8,7 +8,7 @@ if(!JWT_SECRET){
   throw new Error("FATAL ERROR: JWT_SECRET is not defined in the environment.");
 }
 
-export const Auth = function(req: Request, res: Response, next: NextFunction){
+export const auth = function(req: Request, res: Response, next: NextFunction){
   const token = req.headers.authorization;
   if(token){
     const decodedUser = jwt.verify(token, JWT_SECRET) as MyAuthJwtPayload; 
