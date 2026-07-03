@@ -35,7 +35,7 @@ export const signUp = async function(req: Request, res: Response) {
         })
       }
 // Make services of user db calls
-      const hashedPassword: string = await bcrypt.hash(password, 5)
+      const hashedPassword: string = await bcrypt.hash(password, 10)
     
       await UserModel.create({
         username,

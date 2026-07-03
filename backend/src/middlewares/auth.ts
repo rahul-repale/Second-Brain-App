@@ -11,16 +11,16 @@ if(!JWT_SECRET){
 export const auth = function(req: Request, res: Response, next: NextFunction){
   const token = req.headers.authorization;
   if(token){
-    const decodedUser = jwt.verify(token, JWT_SECRET) as MyAuthJwtPayload; 
-    const userId = decodedUser.userId;
-    
-    if(userId) {
-      req.userId = userId;
-      next();
-    } else {
-      return res.status(401).json({ err: "Invalid Credentials, Go to Signin Again" })
+    try {
+      const decodedUser = jwt.verify(token, JWT_SECRET) as MyAuthJwtPayload;
+      if(decodedUser.userId) { 
+        req.userId = decodedUser.userId; 
+        return next(); 
+      }
+      return res.status(401).json({ err: "Invalid token" });
+    } catch {
+      return res.status(401).json({ err: "Invalid or expired token" });
     }
-
   } else {
     return res.status(403).json({ err: 'Token expired, Go to SignIn again' });
   }

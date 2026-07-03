@@ -34,7 +34,7 @@ export const signIn = async function(req: Request, res: Response){
 
       if(!userExist){
         return res.status(403).json({
-          msg: "Invalid Credentials, Username not found"
+          msg: "Invalid Credentials"
         })
       }
       
@@ -51,7 +51,7 @@ export const signIn = async function(req: Request, res: Response){
         })
       } else {
         return res.status(411).json({
-          err: "Password does not match"
+          err: "Invalid Credentials"
         })
       }
     } else {

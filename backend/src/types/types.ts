@@ -23,11 +23,11 @@ export interface CardInput {
   description?: string;
   note?: string;
   title: string;
-  editHistory?: [{
+  editHistory?: {
     userId: ObjectId,
     userName: String,
     timeStamp?: Date;
-  }];
+  }[];
 } 
 
 export interface LinkInput {
