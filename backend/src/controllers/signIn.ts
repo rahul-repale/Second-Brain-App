@@ -42,7 +42,7 @@ export const signIn = async function(req: Request, res: Response){
 
       if(passwordMatch){
         const userId: string = userExist._id.toString();
-        const token: string = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7D" });
+        const token: string = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
         // localStorage.setItem("token", token);
 
         return res.status(200).json({

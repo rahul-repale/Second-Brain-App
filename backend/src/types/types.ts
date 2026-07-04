@@ -25,7 +25,7 @@ export interface CardInput {
   title: string;
   editHistory?: {
     userId: ObjectId,
-    userName: String,
+    userName: string,
     timeStamp?: Date;
   }[];
 } 

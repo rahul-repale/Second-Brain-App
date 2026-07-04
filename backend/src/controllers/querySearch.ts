@@ -5,6 +5,6 @@ export async function querySearch(req: Request, res: Response){
     const query: string = req.body.query;
     
   } else {
-    return res.status(500).json({ err: "Session Timeout, Login again" });
+    return res.status(500).json({ err: "Not Implemented" });
   }
 }

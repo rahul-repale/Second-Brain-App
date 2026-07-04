@@ -11,9 +11,9 @@ const CardSchema = new Schema<CardInput>({
   title: String,
   description: String,
   note: String,
-  editHistory: [{
-    editedBy: { type: ObjectId, ref: 'users' },
-    editorUsername: String,
+  editHistory: [{ 
+    userId: { type: ObjectId, ref: 'users' },
+    userName: String,
     timeStamp: { type: DateType, default: Date.now }
   }]
 });
