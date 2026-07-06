@@ -1,6 +1,7 @@
 node_modules
 .env
-*.tsbuildinfo
+
+tsconfig.tsbuildinfo
 
 /dist/
 /rag/
