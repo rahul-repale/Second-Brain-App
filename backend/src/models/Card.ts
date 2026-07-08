@@ -15,7 +15,15 @@ const CardSchema = new Schema<CardInput>({
     userId: { type: ObjectId, ref: 'users' },
     userName: String,
     timeStamp: { type: DateType, default: Date.now }
-  }]
+  }],
+  embedding: { type: [Number], select: false }
+});
+
+CardSchema.set('toJSON', {
+  transform: (_doc: unknown, ret: Record<string, unknown>) => {
+    delete ret.embedding;
+    return ret;
+  }
 });
 
 export const CardModel = mongoose.model("cards", CardSchema);

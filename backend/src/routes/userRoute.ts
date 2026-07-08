@@ -8,6 +8,9 @@ import { deleteContent } from "../controllers/deleteCard.js"
 import { updateContent } from "../controllers/updateContent.js";
 import { createShareLink } from "../controllers/createShareLink.js";
 import { fetchSharedLink } from "../controllers/fetchSharedBrain.js";
+import { editSharedCard } from "../controllers/editSharedCard.js";
+import { revokeShareLink } from "../controllers/revokeShareLink.js";
+import { listShareLinks } from "../controllers/listShareLinks.js";
 import { querySearch } from "../controllers/querySearch.js";
 
 export const UserRouter = express.Router()
@@ -18,6 +21,11 @@ UserRouter.get("/v1/content", auth, getContent);
 UserRouter.post("/v1/content", auth, createCard);
 UserRouter.delete("/v1/content", auth, deleteContent);
 UserRouter.put("/v1/content", auth, updateContent);
+
 UserRouter.post("/v1/share", auth, createShareLink);
-UserRouter.get("/v1/share/:shareLink", fetchSharedLink)
+UserRouter.get("/v1/share", auth, listShareLinks);
+UserRouter.delete("/v1/share/:linkId", auth, revokeShareLink);
+UserRouter.get("/v1/share/:shareLink", fetchSharedLink);
+UserRouter.put("/v1/share/:shareLink", editSharedCard); 
+
 UserRouter.post("/v1/query", auth, querySearch);

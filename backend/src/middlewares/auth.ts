@@ -25,4 +25,3 @@ export const auth = function(req: Request, res: Response, next: NextFunction){
     return res.status(403).json({ err: 'Token expired, Go to SignIn again' });
   }
 }
-

@@ -8,7 +8,11 @@ export interface MyAuthJwtPayload extends jwt.JwtPayload {
 
 // Databases
 type ObjectId = mongoose.Types.ObjectId;
-type Date = mongoose.Schema.Types.Date;
+// NOTE: there used to be a `type Date = mongoose.Schema.Types.Date` alias
+// here, shadowing the global `Date` for this entire file. Schema.Types.Date
+// is the token you use when *declaring* a schema field, not the type of a
+// hydrated document's value, so every `: Date` below was silently pointing
+// at the wrong thing. Removed - `Date` now means the real thing.
 
 export interface UserInput {
   username: string;
@@ -24,18 +28,30 @@ export interface CardInput {
   note?: string;
   title: string;
   editHistory?: {
-    userId: ObjectId,
+    // Optional: matches the schema (Card.ts doesn't mark this required
+    // either), and lets an anonymous edit-via-share-link record an entry
+    // with no known user, instead of that entry failing validation or a
+    // fake ObjectId having to be invented for it.
+    userId?: ObjectId,
     userName: string,
     timeStamp?: Date;
   }[];
+  // 384-dim vector from embedText() (services/embeddingModel.ts). Optional
+  // because older cards won't have one until the backfill script runs.
+  embedding?: number[];
 } 
+
+export type ShareTargetType = 'card' | 'brain';
+export type SharePermission = 'view' | 'edit';
 
 export interface LinkInput {
   createdBy: ObjectId;
-  token?: string;
-  expiresAt: Date;
+  token: string;
+  // null = never expires; a real Date is the exact TTL deletion instant.
+  expiresAt: Date | null;
   clickCount: number;
+  revoked: boolean;
   targetedAt?: ObjectId; 
-  targetType: string;
-  permission: string;
+  targetType: ShareTargetType;
+  permission: SharePermission;
 }

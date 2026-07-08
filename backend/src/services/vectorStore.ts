@@ -1,66 +1,15 @@
-import { QdrantClient } from "@qdrant/js-client-rest";
-import { embedText, EMBEDDING_DIMENSIONS } from "./embeddingModel.js";
-
-const QDRANT_URL = process.env.QDRANT_URL;
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
-
-if (!QDRANT_URL) {
-  throw new Error("FATAL ERROR: QDRANT_URL is not defined in the environment.");
-}
-
-if (!QDRANT_API_KEY) {
-  throw new Error("FATAL ERROR: QDRANT_API_KEY is not defined in the environment.");
-}
-
-export const qdrant = new QdrantClient({
-  url: QDRANT_URL,
-  apiKey: QDRANT_API_KEY
-});
-
-const COLLECTION_NAME = "cards";
-let collectionReady = false;
+import mongoose from "mongoose";
+import { CardModel } from "../models/Card.js";
+import { embedText } from "./embeddingModel.js";
 
 /**
- * Creates the "cards" collection on first use. getCollection() throws if
- * it doesn't exist yet, which is what we use to detect "needs creating".
- * Cached in-memory after the first successful check so we're not making
- * a round trip to Qdrant on every single request.
+ * Name of the Atlas Vector Search index on the "cards" collection's
+ * `embedding` field. Must match whatever you name it when you create
+ * the index - see src/scripts/createVectorIndex.ts, which is also the
+ * source of truth for the actual index definition (dimensions,
+ * similarity function, which fields are filterable).
  */
-export async function ensureCollection(): Promise<void> {
-  if (collectionReady) return;
-
-  try {
-    await qdrant.getCollection(COLLECTION_NAME);
-  } catch {
-    await qdrant.createCollection(COLLECTION_NAME, {
-      vectors: {
-        size: EMBEDDING_DIMENSIONS,
-        distance: "Cosine"
-      }
-    });
-  }
-
-  collectionReady = true;
-}
-
-/**
- * Qdrant point IDs must be an unsigned integer or a UUID - a raw Mongo
- * ObjectId (24 hex chars) is neither shape. Rather than maintain a
- * separate id-mapping table, we deterministically pad the ObjectId's hex
- * into a valid UUID string. Same cardId always produces the same point
- * id, so re-indexing a card overwrites its old vector instead of
- * duplicating it.
- */
-export function cardIdToPointId(cardId: string): string {
-  const padded = cardId.padStart(32, "0");
-  return [
-    padded.slice(0, 8),
-    padded.slice(8, 12),
-    padded.slice(12, 16),
-    padded.slice(16, 20),
-    padded.slice(20, 32)
-  ].join("-");
-}
+export const VECTOR_INDEX_NAME = "card_vector_index";
 
 interface CardForEmbedding {
   _id: { toString(): string };
@@ -94,65 +43,85 @@ function cardToEmbeddingText(card: CardForEmbedding): string {
 }
 
 /**
- * Embeds a card and upserts it into Qdrant. Call this any time a card is
- * created or updated - it's what keeps the search index from going
- * stale relative to MongoDB. If tags aren't populated, they're just
- * skipped in the embedding text (title/description/note still get used).
+ * Embeds a card and writes the vector onto its own MongoDB document.
+ * Same name and signature as the old Qdrant-backed version on purpose -
+ * createCards.ts, updateContent.ts, and backfillCardEmbeddings.ts all
+ * call this and none of them needed to change, because none of them
+ * ever knew or cared where the vector actually lived. That's the whole
+ * point of putting this behind a service module instead of calling
+ * Qdrant/Mongo directly from three different controllers.
+ *
+ * Uses updateOne() rather than card.save() so this keeps working
+ * whether `card` is a real Mongoose document (createCards.ts,
+ * updateContent.ts, the backfill script) or just a plain object with
+ * the right shape (e.g. in a future test) - it never needs `card` to
+ * have a .save() method, only an _id.
  */
 export async function upsertCardVector(card: CardForEmbedding): Promise<void> {
-  await ensureCollection();
   const text = cardToEmbeddingText(card);
   const vector = await embedText(text);
 
-  await qdrant.upsert(COLLECTION_NAME, {
-    points: [
-      {
-        id: cardIdToPointId(card._id.toString()),
-        vector,
-        payload: {
-          cardId: card._id.toString(),
-          createdBy: card.createdBy.toString(),
-          title: card.title
-        }
-      }
-    ]
-  });
+  await CardModel.updateOne(
+    { _id: card._id },
+    { $set: { embedding: vector } }
+  );
 }
 
-export async function deleteCardVector(cardId: string): Promise<void> {
-  await qdrant.delete(COLLECTION_NAME, {
-    points: [cardIdToPointId(cardId)]
-  });
-}
-
-export interface CardMatch {
-  cardId: string;
+export interface CardSearchResult {
+  _id: mongoose.Types.ObjectId;
+  title: string;
+  description?: string;
+  note?: string;
+  createdBy: mongoose.Types.ObjectId;
+  tags?: mongoose.Types.ObjectId[];
+  editHistory?: unknown[];
   score: number;
 }
 
 /**
- * Embeds the query and searches Qdrant, filtered to only this user's
- * cards. The filter is enforced here AND again in querySearch.ts when we
- * re-fetch the cards from MongoDB - never rely on a single layer for
- * per-user isolation, given this app's history with authorization bugs.
+ * Embeds the query and runs $vectorSearch directly against the "cards"
+ * collection - no second round trip to fetch the actual card content,
+ * because with everything living in one collection, $vectorSearch
+ * already returns the full document.
+ *
+ * createdBy is enforced as a `filter` INSIDE $vectorSearch (it has to be
+ * declared as a "filter"-type field in the index definition for this to
+ * work - see createVectorIndex.ts) rather than as a downstream $match
+ * only. Filtering after the fact would mean Atlas picks its candidate
+ * set from ALL users' cards and only then throws away ones that aren't
+ * yours - as your card count grows across all users, that silently
+ * shrinks how many of *your* results you actually get back, even
+ * though nothing looks wrong from the API response shape. The $match
+ * below is a second, redundant check on top of that - not because the
+ * filter is expected to fail, but because every prior auth bug in this
+ * codebase happened at exactly this kind of single point of failure.
  */
-export async function searchCards(query: string, userId: string, limit = 10): Promise<CardMatch[]> {
-  await ensureCollection();
-  const vector = await embedText(query);
+export async function searchCards(
+  query: string,
+  userId: string,
+  limit = 10
+): Promise<CardSearchResult[]> {
+  const queryVector = await embedText(query);
+  const ownerId = new mongoose.Types.ObjectId(userId);
 
-  const results = await qdrant.search(COLLECTION_NAME, {
-    vector,
-    filter: {
-      must: [{ key: "createdBy", match: { value: userId } }]
+  return CardModel.aggregate<CardSearchResult>([
+    {
+      $vectorSearch: {
+        index: VECTOR_INDEX_NAME,
+        path: "embedding",
+        queryVector,
+        // ~20x limit is Atlas's own rule of thumb for good recall (90%+).
+        numCandidates: limit * 20,
+        limit,
+        filter: { createdBy: { $eq: ownerId } }
+      }
     },
-    with_payload: true,
-    limit
-  });
-
-  return results
-    .map((point) => {
-      const cardId = point.payload?.cardId;
-      return typeof cardId === "string" ? { cardId, score: point.score } : null;
-    })
-    .filter((match): match is CardMatch => match !== null);
+    { $match: { createdBy: ownerId } },
+    { $addFields: { score: { $meta: "vectorSearchScore" } } },
+    // Exclusion-only projection - mixing this with inclusions (like the
+    // addFields above) in the SAME $project stage is invalid MQL, which
+    // is why score is a separate $addFields instead of being folded in
+    // here.
+    { $project: { embedding: 0 } }
+  ]);
 }

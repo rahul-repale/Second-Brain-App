@@ -2,28 +2,57 @@ import type { Request, Response } from "express";
 import { CardModel } from "../models/Card.js";
 import { LinkModel } from "../models/Link.js";
 
-export async function fetchSharedLink(req: Request, res: Response){
-  try{
-    const link = req.params.shareLink as string;
-    const data = await LinkModel.findOne({ token: link });
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
 
-    if(!data){
-      return res.status(403).json({ msg: "Link expired, please create new link" })
+export const PUBLIC_CARD_FIELDS = "title description note tags";
+
+export async function findLiveLink(token: string) {
+  return LinkModel.findOne({
+    token,
+    revoked: false,
+    $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+  });
+}
+
+export async function fetchSharedLink(req: Request, res: Response) {
+  try {
+    const token = req.params.shareLink as string;
+    const data = await findLiveLink(token);
+
+    if (!data) {
+      return res.status(404).json({ msg: "This link is invalid or has expired" });
     }
 
-    data.clickCount += 1;
-    await data.save()
+    LinkModel.updateOne({ _id: data._id }, { $inc: { clickCount: 1 } }).catch(() => {});
+
+    if (data.targetType === "card") {
+      const card = await CardModel.findOne({ createdBy: data.createdBy, _id: data.targetedAt })
+        .select(PUBLIC_CARD_FIELDS);
+      if (!card) {
+        return res.status(404).json({ msg: "The shared card no longer exists" });
+      }
+      return res.status(200).json({ type: "card", permission: data.permission, card });
+    }
     
-    if(data.targetType === "card" && data.targetedAt){
-      const card = await CardModel.findOne({ createdBy: data.createdBy, _id: data.targetedAt });
-      return res.status(200).json({ card, editedBy: req.userId });
-    } else if(data.targetType === "brain"){
-      const brain = await CardModel.find({ createdBy: data.createdBy });
-      return res.status(200).json({ brain, editedBy: req.userId });
-    } else {
-      return res.status(400).json({ msg: "something went wrong, please try again" })
-    }
-  } catch(err) {
-    res.status(500).json({ msg: "Error, Please try again", err });
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(req.query.limit) || DEFAULT_PAGE_SIZE));
+
+    const [cards, total] = await Promise.all([
+      CardModel.find({ createdBy: data.createdBy })
+        .select(PUBLIC_CARD_FIELDS)
+        .skip((page - 1) * limit)
+        .limit(limit),
+      CardModel.countDocuments({ createdBy: data.createdBy }),
+    ]);
+
+    return res.status(200).json({
+      type: "brain",
+      permission: data.permission,
+      cards,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    res.status(500).json({ msg: "Error, Please try again" });
   }
 }
