@@ -39,14 +39,24 @@ import { CardModel } from "../models/Card.js";
 import { EMBEDDING_DIMENSIONS } from "../services/embeddingModel.js";
 import { VECTOR_INDEX_NAME } from "../services/vectorStore.js";
 
+// The mongodb driver's own TS types for listSearchIndexes() only describe
+// the element as `{ name: string }` - a known gap (Atlas actually returns
+// `status`/`queryable`/etc. too, this just isn't reflected in the driver's
+// public types yet). This describes the fields this script actually reads.
+interface SearchIndexInfo {
+  name: string;
+  status?: string;
+  queryable?: boolean;
+}
+
 async function run(): Promise<void> {
   await connectDB();
   const collection = CardModel.collection;
 
-  const existing = await collection
+  const existing = (await collection
     .listSearchIndexes(VECTOR_INDEX_NAME)
     .toArray()
-    .catch(() => []);
+    .catch(() => [])) as SearchIndexInfo[];
 
   if (existing.length > 0) {
     console.log(
@@ -78,7 +88,9 @@ async function run(): Promise<void> {
   console.log("Waiting for the index to become queryable (usually under a minute, can be longer)...");
   let queryable = false;
   while (!queryable) {
-    const [index] = await collection.listSearchIndexes(VECTOR_INDEX_NAME).toArray();
+    const [index] = (await collection
+      .listSearchIndexes(VECTOR_INDEX_NAME)
+      .toArray()) as SearchIndexInfo[];
     queryable = Boolean(index?.queryable);
     if (!queryable) {
       await new Promise((resolve) => setTimeout(resolve, 5000));
